@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
@@ -23,6 +24,7 @@ var db *sql.DB
 
 func initDb() {
 	url := os.Getenv("URL")
+	fmt.Print(url)
 
 	var err error
 	db, err = sql.Open("libsql", url)
@@ -40,6 +42,7 @@ func initDb() {
 }
 
 func main() {
+	godotenv.Load()
 	initDb()
 	defer db.Close()
 
