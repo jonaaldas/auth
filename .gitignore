@@ -2,3 +2,4 @@ my_app
 go.sum
 .vscode
 tmp
+.env
