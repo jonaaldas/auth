@@ -39,6 +39,19 @@ func GetUserByEmail(db *sql.DB, email string) (*User, error) {
 	return &user, nil
 }
 
+func GetUserByID(db *sql.DB, id int) (*User, error) {
+	row := db.QueryRow("SELECT id, email, username, hashed_password, salt FROM users WHERE id = ?", id)
+
+	var user User
+	err := row.Scan(&user.ID, &user.Email, &user.Username, &user.HashedPassword, &user.Salt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 func InsertUser(db *sql.DB, user InsertUserData) (bool, error) {
 	_, err := db.Query("INSERT INTO users (username, email, hashed_password, salt) VALUES (?, ?, ?, ?)", user.Username, user.Email, user.HashedPassword, user.Salt)
 	if err != nil {
