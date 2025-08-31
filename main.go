@@ -163,13 +163,10 @@ func main() {
 	// Auth middleware function
 	authMiddleware := func(c *fiber.Ctx) error {
 		sessionID := c.Cookies("session")
-		fmt.Printf("=== DEBUG: All cookies received ===\n")
-		fmt.Printf("SESSION ID: '%s'\n", sessionID)
-		fmt.Printf("Cookie header: %s\n", c.Get("Cookie"))
-		fmt.Printf("===============================\n")
 		if sessionID == "" {
 			return c.Status(401).JSON(fiber.Map{
-				"error": "Unauthorized - No session cookie",
+				"error":   "Unauthorized - No session cookie",
+				"success": false,
 			})
 		}
 
@@ -178,6 +175,7 @@ func main() {
 		if err != nil || session.Id == "" {
 			return c.Status(401).JSON(fiber.Map{
 				"error":   "Unauthorized - Invalid session",
+				"success": false,
 				"message": err.Error(),
 			})
 		}
@@ -186,7 +184,8 @@ func main() {
 		user, err := userQueries.GetUserByID(db, session.UserId)
 		if err != nil || user == nil {
 			return c.Status(401).JSON(fiber.Map{
-				"error": "Unauthorized - User not found",
+				"error":   "Unauthorized - User not found",
+				"success": false,
 			})
 		}
 
@@ -203,8 +202,8 @@ func main() {
 		user := c.Locals("user").(*userQueries.User)
 
 		return c.JSON(fiber.Map{
-			"loggedIn": true,
-			"user":     user,
+			"success": true,
+			"user":    user,
 		})
 	})
 
