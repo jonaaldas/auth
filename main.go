@@ -44,11 +44,7 @@ func main() {
 		Key: "c2VjcmV0LXRoaXJ0eS0yLWNoYXJhY3Rlci1zdHJpbmc=",
 	}))
 
-	app.Get("api/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"success": true,
-		})
-	})
+	app.Static("/", "./web/dist")
 
 	app.Post("api/register", func(c *fiber.Ctx) error {
 		user := new(RegistrationBody)
