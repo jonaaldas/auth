@@ -1,10 +1,13 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
-	"os"
+	"strconv"
+
+	"github.com/jonaaldas/go-auth/auth"
+	"github.com/jonaaldas/go-auth/db"
+	userQueries "github.com/jonaaldas/go-auth/db/queries"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
@@ -12,88 +15,91 @@ import (
 )
 
 type User struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID       int    `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
 }
 
 type LoginRequest struct {
-	Email string `json:"email"`
+	EMAIL    string `json:"EMAIL"`
+	PASSWORD string `json:"PASSWORD"`
 }
 
-var db *sql.DB
-
-func initDb() {
-	url := os.Getenv("URL")
-	fmt.Print(url)
-
-	var err error
-	db, err = sql.Open("libsql", url)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open db %s: %s", url, err)
-		os.Exit(1)
-	}
-
-	if err = db.Ping(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to connect to db: %s", err)
-		os.Exit(1)
-	}
-
-	log.Println("Database connected successfully")
+type RegistrationBody struct {
+	NAME     string `json:"name"`
+	EMAIL    string `json:"email"`
+	PASSWORD string `json:"password"`
 }
 
 func main() {
 	godotenv.Load()
-	initDb()
+	db := db.InitDb()
 	defer db.Close()
 
 	app := fiber.New()
 
-	app.Get("api/all", func(c *fiber.Ctx) error {
-		rows, err := db.Query("SELECT * from users")
-		if err != nil {
-			log.Printf("Database query error: %v", err)
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Internal server error",
+	app.Post("api/register", func(c *fiber.Ctx) error {
+		user := new(RegistrationBody)
+		if err := c.BodyParser(user); err != nil {
+			return err
+		}
+
+		existingUser, err := userQueries.GetUserByEmail(db, user.EMAIL)
+
+		if err == nil && existingUser != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "User already exists",
 			})
 		}
-		defer rows.Close()
+
+		res, err := auth.HashPassword(user.PASSWORD)
+
+		if err != nil {
+			log.Fatalf("Error hashing password: %v", err)
+		}
+
+		_, err = userQueries.InsertUser(db, userQueries.InsertUserData{
+			Username:       user.NAME,
+			Email:          user.EMAIL,
+			HashedPassword: string(res.HashedPassword),
+			Salt:           strconv.Itoa(int(res.Salt)),
+		})
+
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Failed to create user",
+			})
+		}
 
 		return c.JSON(fiber.Map{
-			"data": rows,
+			"success": true,
 		})
 	})
 
 	app.Post("/api/login", func(c *fiber.Ctx) error {
-		var loginReq LoginRequest
+		userLogin := new(LoginRequest)
+		if err := c.BodyParser(userLogin); err != nil {
+			return err
+		}
+		fmt.Println("userLogin", userLogin)
+		existingUser, err := userQueries.GetUserByEmail(db, userLogin.EMAIL)
+		fmt.Println(existingUser)
 
-		rows, err := db.Query("SELECT id, email FROM users WHERE email = ?", loginReq.Email)
-		if err != nil {
-			log.Printf("Database query error: %v", err)
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Internal server error",
+		if err != nil || existingUser == nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Invalid email or password",
 			})
 		}
-		defer rows.Close()
 
-		var users []User
-		for rows.Next() {
-			var user User
-			if err := rows.Scan(&user.ID, &user.Email); err != nil {
-				log.Printf("Row scan error: %v", err)
-				continue
-			}
-			users = append(users, user)
-		}
-
-		if len(users) == 0 {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "User not found",
+		verify := auth.VerifyPassword(existingUser.HashedPassword, userLogin.PASSWORD, existingUser.Salt)
+		if !verify {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Invalid email or password",
 			})
 		}
 
 		return c.JSON(fiber.Map{
-			"message": "Login successful",
-			"user":    users[0],
+			"success": true,
 		})
 	})
 
