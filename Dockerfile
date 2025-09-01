@@ -42,4 +42,4 @@ COPY --from=go-builder /app/app .
 COPY --from=frontend-builder /app/web/dist ./web/dist
 
 EXPOSE 8080
-CMD ["./app"]%                                                                                                                 
+CMD ["./app"]
